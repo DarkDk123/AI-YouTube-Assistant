@@ -1,5 +1,6 @@
-# AI-YouTube-Summarizer
+# AI-YouTube-Assistant 🤖
 
-### **👉 Summarize any (almost) YouTube Video & Save time! ⏳**
+**AI-YouTube-Assistant** is a ***LangChain*** 🦜🔗 application that helps to answer queries & summarize `YouTube Videos` to understand it's crucial aspects in less time!
 
-**AI-YouTube-Summarizer** is a ***LangChain*** application that helps to summarize `YouTube Videos` and understand it's crucial aspects in less time!
+- **Question answering about YouTube videos 🤔**
+- **Summarize any (almost) YouTube Video & Save time! ⏳**
