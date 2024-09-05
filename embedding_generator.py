@@ -1,3 +1,8 @@
+"""
+## LangChain Working Logic
+Everything covered from loading transcript to similarity search in Chroma vector database.
+"""
+
 # Main Imports
 from langchain_community.document_loaders.youtube import YoutubeLoader
 from langchain_huggingface import HuggingFaceEndpointEmbeddings, HuggingFaceEndpoint
@@ -9,6 +14,7 @@ from langchain_core.prompts import PromptTemplate
 # For type support.
 from typing import List
 from langchain_core.documents.base import Document
+from typing import Iterator
 
 import os
 
@@ -24,6 +30,7 @@ LLM: HuggingFaceEndpoint = HuggingFaceEndpoint(
     task="text-generation",
     repetition_penalty=1.03,
     temperature=0.8,
+    streaming=True,
 )  # type: ignore
 
 HF_EMBEDDER = HuggingFaceEndpointEmbeddings(
@@ -33,10 +40,10 @@ HF_EMBEDDER = HuggingFaceEndpointEmbeddings(
 )  # type: ignore
 
 
-def create_vector_db_from_yt_url(video_url: str) -> Chroma:
+def create_vector_db_from_yt_url(video_url: str) -> tuple[Chroma, str]:
     """Creates a vector store for transcript text embedding of the given video"""
     # Loading transcript!
-    loader: YoutubeLoader = YoutubeLoader.from_youtube_url(video_url)
+    loader: YoutubeLoader = YoutubeLoader.from_youtube_url(video_url, add_video_info=True)
     transcript: List[Document] = loader.load()
 
     # Splitting transcript into chunks!
@@ -53,22 +60,22 @@ def create_vector_db_from_yt_url(video_url: str) -> Chroma:
         embedding=HF_EMBEDDER,
     )
 
-    return db_index
-
+    return db_index, docs[0].metadata["thumbnail_url"] # metadata for video info 
 
 def _get_query_similar_docs(db: Chroma, query: str, k=3) -> str:
     """Returns documents most similar to the given query"""
 
     docs: List[Document] = db.similarity_search(query=query, k=k)  # top-k docs
+    metadata = f"\nvideo metadata : {docs[0].metadata}\n"
     entire_doc_context = " | ".join(
         f"Page {i} : {doc.page_content}\n" for i, doc in enumerate(docs)
     )
 
-    return entire_doc_context
+    return entire_doc_context + metadata
 
 
-def get_response(query: str, db: Chroma):
-    docs_context: str = _get_query_similar_docs(db, query=query)
+def get_response(query: str, db: Chroma) -> Iterator:
+    docs_context = _get_query_similar_docs(db, query=query)
 
     prompt = PromptTemplate(
         input_variables=["question", "docs"],
@@ -83,20 +90,20 @@ def get_response(query: str, db: Chroma):
         
         If you feel like you don't have enough information to answer the question, say "I don't know".
         
-        Your answers should be verbose and detailed.
+        Your answers should be verbose and detailed. Now, only return the response to the user!
         """,
     )
 
     global LLM
     chain = prompt | LLM
-    response = chain.invoke({"question": query, "docs": docs_context})
+    response = chain.stream({"question": query, "docs": docs_context})
 
     return response
 
 
 # Test embeddings
 if __name__ == "__main__":
-    db = create_vector_db_from_yt_url(
+    db, yt_url = create_vector_db_from_yt_url(
         "https://youtu.be/_XIihESyy5g?si=mtPgyIV4VDLG6MHh"
     )
 
